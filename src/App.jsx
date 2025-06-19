@@ -56,9 +56,19 @@ function App() {
       backgroundColor: '#fffdf8',
     }}
   >
-        <Typography variant="h4" gutterBottom color="primary" fontWeight={600}>
-          Filipino Food Queue
-        </Typography>
+        <Typography
+  variant="h4"
+  gutterBottom
+  sx={{
+    color: '#d32f2f',
+    fontWeight: 800,
+    letterSpacing: 1,
+    textShadow: '1px 1px 1px rgba(0,0,0,0.1)'
+  }}
+>
+ Filipino Food Queue
+</Typography>
+
 
         <Stack spacing={2} mb={3}>
           <TextField
@@ -87,7 +97,7 @@ function App() {
       "Ginataang Gulay",
       "Lomi",
       "Bangus",
-      "Halo-Halo 🍧"
+      "Halo-Halo"
     ].map((item, i) => (
       <MenuItem key={i} value={item}>{item}</MenuItem>
     ))}
@@ -117,28 +127,36 @@ function App() {
           <Grid item xs={6}>
             <Typography variant="h6" color="primary">Kiosk A</Typography>
             <Button
-              variant="contained"
-              color="secondary"
-              fullWidth
-              onClick={() => handleServe('A')}
-              disabled={queue.length === 0}
-              sx={{ mt: 1 }}
-            >
-              Serve Next
-            </Button>
+  variant="contained"
+  onClick={() => handleServe('A')}
+  sx={{
+    backgroundColor: '#ff6f00',
+    color: '#fff',
+    fontWeight: 'bold',
+    '&:hover': { backgroundColor: '#e65100' },
+    boxShadow: 3
+  }}
+>
+  SERVE NEXT
+</Button>
+
+
           </Grid>
           <Grid item xs={6}>
             <Typography variant="h6" color="primary">Kiosk B</Typography>
             <Button
-              variant="contained"
-              color="success"
-              fullWidth
-              onClick={() => handleServe('B')}
-              disabled={queue.length === 0}
-              sx={{ mt: 1 }}
-            >
-              Serve Next
-            </Button>
+  variant="contained"
+  onClick={() => handleServe('B')}
+  sx={{
+    backgroundColor: '#ffa000',
+    color: '#fff',
+    fontWeight: 'bold',
+    '&:hover': { backgroundColor: '#2e7d32' },
+    boxShadow: 3
+  }}
+>
+  SERVE NEXT
+</Button>
           </Grid>
         </Grid>
 
