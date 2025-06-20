@@ -1,171 +1,130 @@
-import React, { useState } from 'react'
-import Queue from '../src/components/Queue.jsx';
+import React, { useState, useEffect, useRef } from 'react'
+import Queue from '../src/components/Queue.jsx'
+import RegularCashier from './components/RegularCashier.jsx'
+import PriorityCashier from './components/PriorityCashier.jsx'
 import {
-  Container, Typography, TextField, Button,
-  MenuItem, Select, FormControl, InputLabel,
-  Stack, Grid, Paper
+  Container, Typography, Button, Stack, Grid, Paper
 } from '@mui/material'
 
 let nextNumber = 1
 
 function App() {
   const [queue, setQueue] = useState([])
-  const [name, setName] = useState('')
-  const [dish, setDish] = useState('Adobo')
-  const [served, setServed] = useState([])
+  const [priorityCashier, setPriorityCashier] = useState([])
+  const [regularCashier1, setRegularCashier1] = useState([])
+  const [regularCashier2, setRegularCashier2] = useState([])
 
+  // Track if a cashier is busy
+  const [priorityBusy, setPriorityBusy] = useState(false)
+  const [reg1Busy, setReg1Busy] = useState(false)
+  const [reg2Busy, setReg2Busy] = useState(false)
+
+  // Refs to store timeouts for cleanup
+  const priorityTimeout = useRef(null)
+  const reg1Timeout = useRef(null)
+  const reg2Timeout = useRef(null)
+
+  // Add customer
   const handleAdd = () => {
-    if (name.trim() !== '') {
-      const priority = `P-${String(nextNumber).padStart(3, '0')}`
-      const newEntry = { priority, name, dish }
-      setQueue([...queue, newEntry])
-      setName('')
-      nextNumber++
+    const isPriority = Math.random() < 0.4
+    const id = `C-${String(nextNumber).padStart(3, '0')}`
+    const newEntry = {
+      id,
+      type: isPriority ? "Priority" : "Regular"
+    }
+    setQueue(prev => [...prev, newEntry])
+    nextNumber++
+  }
+
+  // Assign customers to cashiers (manual trigger)
+  const handleAssign = () => {
+    // Priority cashier
+    if (!priorityBusy && queue.some(c => c.type === "Priority")) {
+      const idx = queue.findIndex(c => c.type === "Priority")
+      if (idx !== -1) {
+        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
+        setPriorityCashier([customer])
+        setPriorityBusy(true)
+        setQueue(q => q.filter((_, i) => i !== idx))
+        priorityTimeout.current = setTimeout(() => {
+          setPriorityCashier([])
+          setPriorityBusy(false)
+        }, 3000)
+      }
+    }
+
+    // Regular cashier 1
+    if (!reg1Busy && queue.some(c => c.type === "Regular")) {
+      const idx = queue.findIndex(c => c.type === "Regular")
+      if (idx !== -1) {
+        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
+        setRegularCashier1([customer])
+        setReg1Busy(true)
+        setQueue(q => q.filter((_, i) => i !== idx))
+        reg1Timeout.current = setTimeout(() => {
+          setRegularCashier1([])
+          setReg1Busy(false)
+        }, 5000)
+      }
+    }
+
+    // Regular cashier 2
+    if (!reg2Busy && queue.some(c => c.type === "Regular")) {
+      const idx = queue.findIndex(c => c.type === "Regular")
+      if (idx !== -1) {
+        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
+        setRegularCashier2([customer])
+        setReg2Busy(true)
+        setQueue(q => q.filter((_, i) => i !== idx))
+        reg2Timeout.current = setTimeout(() => {
+          setRegularCashier2([])
+          setReg2Busy(false)
+        }, 5000)
+      }
     }
   }
 
-  const handleServe = (kiosk) => {
-    if (queue.length > 0) {
-      const current = queue[0]
-      const updatedQueue = queue.slice(1)
-      setQueue(updatedQueue)
-      setServed([...served, { ...current, kiosk }])
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(priorityTimeout.current)
+      clearTimeout(reg1Timeout.current)
+      clearTimeout(reg2Timeout.current)
     }
-  }
+  }, [])
 
   return (
-    <Container
-  maxWidth="sm"
-  sx={{
-    mt: 5,
-    minHeight: '100vh',
-    backgroundColor: '#fff3e0', // warm yellow-orange background
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    pt: 5,
-  }}
->
-  <Paper
-    elevation={5}
-    sx={{
-      p: 4,
-      borderRadius: 3,
-      width: '100%',
-      borderTop: '6px solid #e53935', // fiesta red strip
-      backgroundColor: '#fffdf8',
-    }}
-  >
-        <Typography
-  variant="h4"
-  gutterBottom
-  sx={{
-    color: '#d32f2f',
-    fontWeight: 800,
-    letterSpacing: 1,
-    textShadow: '1px 1px 1px rgba(0,0,0,0.1)'
-  }}
->
- Filipino Food Queue
-</Typography>
-
+    <Container maxWidth="sm" sx={{ mt: 5, minHeight: '100vh', backgroundColor: '#fff3e0', pt: 5 }}>
+      <Paper elevation={5} sx={{ p: 4, borderRadius: 3, borderTop: '6px solid #e53935', backgroundColor: '#fffdf8' }}>
+        <Typography variant="h4" gutterBottom sx={{ color: '#d32f2f', fontWeight: 800 }}>
+          Cashier Queue System
+        </Typography>
 
         <Stack spacing={2} mb={3}>
-          <TextField
-            label="Enter your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            fullWidth
-          />
-          <FormControl fullWidth>
-  <InputLabel>Dish</InputLabel>
-  <Select value={dish} label="Dish" onChange={(e) => setDish(e.target.value)}>
-    {[
-      "Adobo",
-      "Sinigang",
-      "Lechon",
-      "Kare-Kare",
-      "Pancit",
-      "Tinola",
-      "Lumpiang Shanghai",
-      "Inihaw na Baboy",
-      "Inasal",
-      "Bulalo",
-      "Dinuguan",
-      "Tapsilog",
-      "Tortang Talong",
-      "Ginataang Gulay",
-      "Lomi",
-      "Bangus",
-      "Halo-Halo"
-    ].map((item, i) => (
-      <MenuItem key={i} value={item}>{item}</MenuItem>
-    ))}
-  </Select>
-</FormControl>
-
-          <Button
-  variant="contained"
-  color="primary"
-  sx={{
-    backgroundColor: '#e53935',
-    '&:hover': { backgroundColor: '#c62828' },
-    fontWeight: 'bold',
-  }}
-  onClick={handleAdd}
->
-  GET PRIORITY NUMBER
-</Button>
-
+          <Button variant="contained" sx={{ backgroundColor: '#e53935', fontWeight: 'bold' }} onClick={handleAdd}>
+            Add Customer
+          </Button>
+          <Button variant="contained" sx={{ backgroundColor: '#e53935', fontWeight: 'bold' }} onClick={handleAssign}>
+            Assign Customer
+          </Button>
         </Stack>
-        
-        
 
         <Queue queue={queue} title="Waiting Queue" />
 
         <Grid container spacing={2} sx={{ mt: 3 }}>
-          <Grid item xs={6}>
-            <Typography variant="h6" color="primary">Kiosk A</Typography>
-            <Button
-  variant="contained"
-  onClick={() => handleServe('A')}
-  sx={{
-    backgroundColor: '#ff6f00',
-    color: '#fff',
-    fontWeight: 'bold',
-    '&:hover': { backgroundColor: '#e65100' },
-    boxShadow: 3
-  }}
->
-  SERVE NEXT
-</Button>
-
-
+          <Grid item xs={12}>
+            <PriorityCashier data={priorityCashier} />
           </Grid>
           <Grid item xs={6}>
-            <Typography variant="h6" color="primary">Kiosk B</Typography>
-            <Button
-  variant="contained"
-  onClick={() => handleServe('B')}
-  sx={{
-    backgroundColor: '#ffa000',
-    color: '#fff',
-    fontWeight: 'bold',
-    '&:hover': { backgroundColor: '#2e7d32' },
-    boxShadow: 3
-  }}
->
-  SERVE NEXT
-</Button>
+            <RegularCashier data={regularCashier1} title="Regular Cashier 1" />
+          </Grid>
+          <Grid item xs={6}>
+            <RegularCashier data={regularCashier2} title="Regular Cashier 2" />
           </Grid>
         </Grid>
-
-        <Queue queue={served} title="Served Queue" showKiosk />
       </Paper>
     </Container>
   )
 }
 
 export default App
-
-

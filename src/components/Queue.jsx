@@ -1,9 +1,7 @@
 import React from 'react'
-import {
-  Typography, List, ListItem, ListItemText, Divider
-} from '@mui/material'
+import { Typography, List, ListItem, ListItemText, Divider } from '@mui/material'
 
-function Queue({ queue, title, showKiosk }) {
+function Queue({ queue, title }) {
   return (
     <div style={{ marginTop: 24 }}>
       <Typography variant="h6" gutterBottom>{title}</Typography>
@@ -14,10 +12,7 @@ function Queue({ queue, title, showKiosk }) {
           {queue.map((entry, index) => (
             <div key={index}>
               <ListItem>
-                <ListItemText
-                  primary={`${entry.priority} - ${entry.name}`}
-                  secondary={`Dish: ${entry.dish}` + (showKiosk ? ` | Served at Kiosk ${entry.kiosk}` : '')}
-                />
+                <ListItemText primary={entry.id} />
               </ListItem>
               {index < queue.length - 1 && <Divider />}
             </div>
