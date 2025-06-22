@@ -1,9 +1,10 @@
+// src/App.jsx
 import React, { useState, useEffect, useRef } from 'react'
-import Queue from '../src/components/Queue.jsx'
-import RegularCashier from './components/RegularCashier.jsx'
-import PriorityCashier from './components/PriorityCashier.jsx'
+import Queue from './components/Queue'
+import RegularCashier from './components/RegularCashier'
+import PriorityCashier from './components/PriorityCashier'
 import {
-  Container, Typography, Button, Stack, Grid, Paper
+  Container, Typography, Button, Stack, Grid, Paper, Box
 } from '@mui/material'
 
 let nextNumber = 1
@@ -13,114 +14,138 @@ function App() {
   const [priorityCashier, setPriorityCashier] = useState([])
   const [regularCashier1, setRegularCashier1] = useState([])
   const [regularCashier2, setRegularCashier2] = useState([])
+  const [tick, setTick] = useState(0)
+  const [servedCount, setServedCount] = useState(0)
 
-  // Track if a cashier is busy
-  const [priorityBusy, setPriorityBusy] = useState(false)
-  const [reg1Busy, setReg1Busy] = useState(false)
-  const [reg2Busy, setReg2Busy] = useState(false)
-
-  // Refs to store timeouts for cleanup
   const priorityTimeout = useRef(null)
   const reg1Timeout = useRef(null)
   const reg2Timeout = useRef(null)
 
-  // Add customer
-  const handleAdd = () => {
-    const isPriority = Math.random() < 0.4
-    const id = `C-${String(nextNumber).padStart(3, '0')}`
-    const newEntry = {
-      id,
-      type: isPriority ? "Priority" : "Regular"
-    }
-    setQueue(prev => [...prev, newEntry])
-    nextNumber++
-  }
-
-  // Assign customers to cashiers (manual trigger)
-  const handleAssign = () => {
-    // Priority cashier
-    if (!priorityBusy && queue.some(c => c.type === "Priority")) {
-      const idx = queue.findIndex(c => c.type === "Priority")
-      if (idx !== -1) {
-        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
-        setPriorityCashier([customer])
-        setPriorityBusy(true)
-        setQueue(q => q.filter((_, i) => i !== idx))
-        priorityTimeout.current = setTimeout(() => {
-          setPriorityCashier([])
-          setPriorityBusy(false)
-        }, 3000)
-      }
-    }
-
-    // Regular cashier 1
-    if (!reg1Busy && queue.some(c => c.type === "Regular")) {
-      const idx = queue.findIndex(c => c.type === "Regular")
-      if (idx !== -1) {
-        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
-        setRegularCashier1([customer])
-        setReg1Busy(true)
-        setQueue(q => q.filter((_, i) => i !== idx))
-        reg1Timeout.current = setTimeout(() => {
-          setRegularCashier1([])
-          setReg1Busy(false)
-        }, 5000)
-      }
-    }
-
-    // Regular cashier 2
-    if (!reg2Busy && queue.some(c => c.type === "Regular")) {
-      const idx = queue.findIndex(c => c.type === "Regular")
-      if (idx !== -1) {
-        const customer = { ...queue[idx], timestamp: new Date().toLocaleTimeString() }
-        setRegularCashier2([customer])
-        setReg2Busy(true)
-        setQueue(q => q.filter((_, i) => i !== idx))
-        reg2Timeout.current = setTimeout(() => {
-          setRegularCashier2([])
-          setReg2Busy(false)
-        }, 5000)
-      }
-    }
-  }
-
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      clearTimeout(priorityTimeout.current)
-      clearTimeout(reg1Timeout.current)
-      clearTimeout(reg2Timeout.current)
-    }
+    const interval = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(interval)
   }, [])
 
+  const getRandomTime = () => Math.floor(Math.random() * 21 + 20) * 1000
+
+  const handleAdd = () => {
+    const id = `C-${String(nextNumber++).padStart(3, '0')}`
+    const newEntry = {
+      id,
+      type: Math.random() < 0.4 ? "Priority" : "Regular",
+      servingTime: getRandomTime(),
+    }
+    setQueue(prev => [...prev, newEntry])
+  }
+
+  const handleAssign = () => {
+    let available = [...queue]
+
+    const assignToCashier = (cashier, setCashier, startFunc) => {
+      if (cashier.length === 0 && available.length) {
+        const customer = { ...available.shift(), startTime: Date.now(), servingTime: getRandomTime() }
+        setCashier([customer])
+        startFunc(customer)
+      }
+    }
+
+    assignToCashier(priorityCashier, setPriorityCashier, startPriority)
+    assignToCashier(regularCashier1, setRegularCashier1, startRegular1)
+    assignToCashier(regularCashier2, setRegularCashier2, startRegular2)
+
+    const reg1Extra = [], reg2Extra = []
+    available.forEach((cust, idx) => (idx % 2 === 0 ? reg1Extra : reg2Extra).push(cust))
+    if (reg1Extra.length) setRegularCashier1(prev => [...prev, ...reg1Extra])
+    if (reg2Extra.length) setRegularCashier2(prev => [...prev, ...reg2Extra])
+    setQueue([])
+  }
+
+  const startRegular1 = (current) => {
+    reg1Timeout.current = setTimeout(() => {
+      setServedCount(c => c + 1)
+      setRegularCashier1(prev => {
+        const updated = prev.slice(1)
+        if (!updated.length) return []
+        const next = { ...updated[0], startTime: Date.now(), servingTime: getRandomTime() }
+        startRegular1(next)
+        return [next, ...updated.slice(1)]
+      })
+    }, current.servingTime)
+  }
+
+  const startRegular2 = (current) => {
+    reg2Timeout.current = setTimeout(() => {
+      setServedCount(c => c + 1)
+      setRegularCashier2(prev => {
+        const updated = prev.slice(1)
+        if (!updated.length) return []
+        const next = { ...updated[0], startTime: Date.now(), servingTime: getRandomTime() }
+        startRegular2(next)
+        return [next, ...updated.slice(1)]
+      })
+    }, current.servingTime)
+  }
+
+  const startPriority = (current) => {
+    setPriorityCashier([current])
+    priorityTimeout.current = setTimeout(() => {
+      setServedCount(c => c + 1)
+      let nextCandidate = null
+
+      setRegularCashier1(prev => {
+        const waiting = prev.slice(1)
+        if (!nextCandidate && waiting.length) {
+          nextCandidate = { ...waiting[0], startTime: Date.now(), servingTime: getRandomTime() }
+          return [prev[0], ...waiting.slice(1)]
+        }
+        return prev
+      })
+
+      setRegularCashier2(prev => {
+        const waiting = prev.slice(1)
+        if (!nextCandidate && waiting.length) {
+          nextCandidate = { ...waiting[0], startTime: Date.now(), servingTime: getRandomTime() }
+          return [prev[0], ...waiting.slice(1)]
+        }
+        return prev
+      })
+
+      nextCandidate ? startPriority(nextCandidate) : setPriorityCashier([])
+    }, current.servingTime)
+  }
+
+  const handleReset = () => {
+    [priorityTimeout, reg1Timeout, reg2Timeout].forEach(ref => clearTimeout(ref.current))
+    setQueue([])
+    setPriorityCashier([])
+    setRegularCashier1([])
+    setRegularCashier2([])
+    setServedCount(0)
+    nextNumber = 1
+  }
+
   return (
-    <Container maxWidth="sm" sx={{ mt: 5, minHeight: '100vh', backgroundColor: '#fff3e0', pt: 5 }}>
-      <Paper elevation={5} sx={{ p: 4, borderRadius: 3, borderTop: '6px solid #e53935', backgroundColor: '#fffdf8' }}>
-        <Typography variant="h4" gutterBottom sx={{ color: '#d32f2f', fontWeight: 800 }}>
+    <Container maxWidth="md" style={{ marginTop: 40, minHeight: '100vh', backgroundColor: '#fffbe6', paddingTop: 40 }}>
+      <Paper elevation={5} style={{ padding: 32, borderRadius: 16, backgroundColor: '#fff' }}>
+        <Typography variant="h4" gutterBottom style={{ color: '#c62828', fontWeight: 900, textAlign: 'center' }}>
           Cashier Queue System
         </Typography>
-
-        <Stack spacing={2} mb={3}>
-          <Button variant="contained" sx={{ backgroundColor: '#e53935', fontWeight: 'bold' }} onClick={handleAdd}>
-            Add Customer
-          </Button>
-          <Button variant="contained" sx={{ backgroundColor: '#e53935', fontWeight: 'bold' }} onClick={handleAssign}>
-            Assign Customer
-          </Button>
+        <Stack spacing={2} direction="row" justifyContent="center" style={{ marginBottom: 24 }}>
+          <Button variant="contained" style={{ backgroundColor: '#d32f2f', fontWeight: 'bold' }} onClick={handleAdd}>Add Customer</Button>
+          <Button variant="contained" style={{ backgroundColor: '#9e9e9e', color: '#fff', fontWeight: 'bold' }} onClick={handleAssign}>Assign Customers</Button>
+          <Button variant="outlined" color="error" onClick={handleReset}>Reset System</Button>
         </Stack>
 
-        <Queue queue={queue} title="Waiting Queue" />
+        <Box textAlign="center" marginBottom={2}>
+          <Typography><strong>Total Served:</strong> {servedCount}</Typography>
+          <Typography><strong>Remaining in Queue:</strong> {queue.length}</Typography>
+        </Box>
 
-        <Grid container spacing={2} sx={{ mt: 3 }}>
-          <Grid item xs={12}>
-            <PriorityCashier data={priorityCashier} />
-          </Grid>
-          <Grid item xs={6}>
-            <RegularCashier data={regularCashier1} title="Regular Cashier 1" />
-          </Grid>
-          <Grid item xs={6}>
-            <RegularCashier data={regularCashier2} title="Regular Cashier 2" />
-          </Grid>
+        <Queue queue={queue} title="Waiting Queue" />
+        <Grid container spacing={2} style={{ marginTop: 24 }}>
+          <Grid item xs={12}><PriorityCashier data={priorityCashier} tick={tick} /></Grid>
+          <Grid item xs={12} md={6}><RegularCashier data={regularCashier1} title="Regular Cashier 1" tick={tick} /></Grid>
+          <Grid item xs={12} md={6}><RegularCashier data={regularCashier2} title="Regular Cashier 2" tick={tick} /></Grid>
         </Grid>
       </Paper>
     </Container>

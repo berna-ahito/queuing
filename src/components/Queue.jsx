@@ -1,25 +1,28 @@
 import React from 'react'
-import { Typography, List, ListItem, ListItemText, Divider } from '@mui/material'
+import { Paper, Typography, List, ListItem, ListItemText, Divider, Box } from '@mui/material'
 
-function Queue({ queue, title }) {
+const Queue = ({ queue, title }) => {
   return (
-    <div style={{ marginTop: 24 }}>
+    <Paper elevation={2} style={{ padding: '16px', backgroundColor: '#fffde7' }}>
       <Typography variant="h6" gutterBottom>{title}</Typography>
+
       {queue.length === 0 ? (
-        <Typography>No one in this list</Typography>
+        <Typography variant="body2" color="textSecondary">No one in this list</Typography>
       ) : (
-        <List>
-          {queue.map((entry, index) => (
-            <div key={index}>
-              <ListItem>
-                <ListItemText primary={entry.id} />
-              </ListItem>
-              {index < queue.length - 1 && <Divider />}
-            </div>
-          ))}
-        </List>
+        <Box style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
+          <List dense>
+            {queue.map((customer, index) => (
+              <React.Fragment key={customer.id}>
+                <ListItem>
+                  <ListItemText primary={customer.id} />
+                </ListItem>
+                {index < queue.length - 1 && <Divider />}
+              </React.Fragment>
+            ))}
+          </List>
+        </Box>
       )}
-    </div>
+    </Paper>
   )
 }
 
