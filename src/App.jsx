@@ -1,4 +1,4 @@
-// App.jsx (harmonized with beige theme)
+// App.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import Queue from './components/Queue'
 import PriorityCashier from './components/PriorityCashier'
@@ -17,6 +17,18 @@ function App() {
   const regular2TimerRef = useRef(null)
   const customerIdCounter = useRef(1)
 
+  const handleRemovePriorityCustomer = (id) => {
+    setPriorityLane(prev => prev.filter(customer => customer.id !== id))
+  }
+
+  const handleRemoveRegular1Customer = (id) => {
+    setRegularLane1(prev => prev.filter(customer => customer.id !== id))
+  }
+
+  const handleRemoveRegular2Customer = (id) => {
+    setRegularLane2(prev => prev.filter(customer => customer.id !== id))
+  }
+
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(Date.now()), 1000)
     return () => clearInterval(interval)
@@ -31,9 +43,43 @@ function App() {
     setWaitingQueue(prev => [...prev, newCustomer])
   }
 
+  const assignSingleCustomer = () => {
+    if (waitingQueue.length === 0) {
+      alert("No customers to assign!")
+      return
+    }
+    const customer = waitingQueue[0]
+    setWaitingQueue(prev => prev.slice(1))
+
+    if (customer.type === "Priority" && priorityLane.length < 5) {
+      if (priorityLane.length === 0) {
+        setPriorityLane([customer])
+        startServingCustomerInPriority(customer)
+      } else {
+        setPriorityLane(prev => [...prev, customer])
+      }
+    } else {
+      if (regularLane1.length <= regularLane2.length) {
+        if (regularLane1.length === 0) {
+          setRegularLane1([customer])
+          startServingCustomerInRegular1(customer)
+        } else {
+          setRegularLane1(prev => [...prev, customer])
+        }
+      } else {
+        if (regularLane2.length === 0) {
+          setRegularLane2([customer])
+          startServingCustomerInRegular2(customer)
+        } else {
+          setRegularLane2(prev => [...prev, customer])
+        }
+      }
+    }
+  }
+
   const assignCustomersToLanes = () => {
     if (waitingQueue.length === 0) {
-      alert("🚫 No customers to assign!")
+      alert("No customers to assign!")
       return
     }
 
@@ -52,7 +98,7 @@ function App() {
     })
 
     setWaitingQueue([])
-    setPriorityLane(priorityCustomers.slice(0, 5))
+    setPriorityLane(priority)
     setRegularLane1(reg1)
     setRegularLane2(reg2)
 
@@ -72,44 +118,49 @@ function App() {
     })
 
     priorityTimerRef.current = setTimeout(() => {
-      setTotalCustomersServed(count => count + 1)
+      setTotalCustomersServed(c => c + 1)
       setPriorityLane(prev => {
         const remaining = prev.slice(1)
         if (remaining.length > 0) {
           startServingCustomerInPriority(remaining[0])
           return remaining
         } else {
-          let moved = false
-          setRegularLane1(reg1 => {
-            if (reg1.length > 1) {
-              const customer = reg1[1]
-              const updated = [...reg1]
-              updated.splice(1, 1)
-              setPriorityLane([customer])
-              startServingCustomerInPriority(customer)
-              moved = true
-              return updated
-            }
-            return reg1
-          })
-          if (!moved) {
-            setRegularLane2(reg2 => {
-              if (reg2.length > 1) {
-                const customer = reg2[1]
-                const updated = [...reg2]
-                updated.splice(1, 1)
-                setPriorityLane([customer])
-                startServingCustomerInPriority(customer)
-                return updated
-              }
-              return reg2
-            })
-          }
+          tryMoveToPriorityFromRegulars()
           return []
         }
       })
       balanceRegularLanes()
     }, newCustomer.serviceTime)
+  }
+
+  const tryMoveToPriorityFromRegulars = () => {
+    let moved = false
+
+    setRegularLane1(reg1 => {
+      if (!moved && reg1.length > 1) {
+        const customer = reg1[1]
+        const updated = [...reg1]
+        updated.splice(1, 1)
+        setPriorityLane([customer])
+        startServingCustomerInPriority(customer)
+        moved = true
+        return updated
+      }
+      return reg1
+    })
+
+    setRegularLane2(reg2 => {
+      if (!moved && reg2.length > 1) {
+        const customer = reg2[1]
+        const updated = [...reg2]
+        updated.splice(1, 1)
+        setPriorityLane([customer])
+        startServingCustomerInPriority(customer)
+        moved = true
+        return updated
+      }
+      return reg2
+    })
   }
 
   const startServingCustomerInRegular1 = (customer) => {
@@ -161,25 +212,32 @@ function App() {
   }
 
   const balanceRegularLanes = () => {
-    setTimeout(() => {
-      setRegularLane1(reg1 => {
-        setRegularLane2(reg2 => {
-          const reg1Wait = reg1.length > 1 ? reg1.slice(1) : []
-          const reg2Wait = reg2.length > 1 ? reg2.slice(1) : []
-          const diff = reg1Wait.length - reg2Wait.length
-          if (Math.abs(diff) > 1) {
-            const from = diff > 0 ? [...reg1] : [...reg2]
-            const to = diff > 0 ? [...reg2] : [...reg1]
-            const moved = from.splice(1, 1)[0]
-            to.push(moved)
-            setRegularLane1(diff > 0 ? from : to)
-            setRegularLane2(diff > 0 ? to : from)
+    setRegularLane1(reg1 => {
+      setRegularLane2(reg2 => {
+        const reg1Wait = reg1.slice(1)
+        const reg2Wait = reg2.slice(1)
+        const diff = reg1Wait.length - reg2Wait.length
+
+        if (Math.abs(diff) >= 2) {
+          if (diff > 0 && reg1.length > 1) {
+            const moved = reg1[1]
+            const updatedReg1 = [...reg1]
+            updatedReg1.splice(1, 1)
+            setRegularLane1(updatedReg1)
+            setRegularLane2([...reg2, moved])
+          } else if (diff < 0 && reg2.length > 1) {
+            const moved = reg2[1]
+            const updatedReg2 = [...reg2]
+            updatedReg2.splice(1, 1)
+            setRegularLane2(updatedReg2)
+            setRegularLane1([...reg1, moved])
           }
-          return reg2
-        })
-        return reg1
+        }
+
+        return reg2
       })
-    }, 100)
+      return reg1
+    })
   }
 
   const resetEverything = () => {
@@ -198,27 +256,42 @@ function App() {
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px', backgroundColor: '#fff8e1', minHeight: '100vh' }}>
       <div style={{ backgroundColor: '#ffffff', padding: '30px', borderRadius: '15px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
         <h1 style={{ textAlign: 'center', color: '#d84315', marginBottom: '20px', fontSize: '2.5em', fontWeight: '700' }}>
-          💡 Cashier Queue Management System
+          Cashier Queueing System
         </h1>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '25px', flexWrap: 'wrap' }}>
-          <button onClick={addCustomer} style={buttonStyle('#fbc02d')}>➕ Add Customer</button>
-          <button onClick={assignCustomersToLanes} style={buttonStyle('#8d6e63')}>🎯 Assign Customers</button>
-          <button onClick={resetEverything} style={buttonStyle('#d84315')}>♻️ Reset System</button>
+          <button onClick={addCustomer} style={buttonStyle('#fbc02d')}>Add Customer</button>
+          <button onClick={assignSingleCustomer} style={buttonStyle('#fbc02d')}>Assign Customer</button>
+          <button onClick={assignCustomersToLanes} style={buttonStyle('#8d6e63')}>Assign All Customers</button>
+          <button onClick={resetEverything} style={buttonStyle('#d84315')}>Reset System</button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '60px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <Stat label="✅ Total Served" value={totalCustomersServed} color="#8d6e63" />
-          <Stat label="⌛ Waiting Queue" value={waitingQueue.length} color="#6d4c41" />
+          <Stat label="Total Customers Served" value={totalCustomersServed} color="#8d6e63" />
+          <Stat label="Waiting Queue" value={waitingQueue.length} color="#6d4c41" />
         </div>
 
-        <Queue queueList={waitingQueue} title="📋 Waiting Queue" />
+        <Queue queueList={waitingQueue} title="Waiting Queue" />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
-          <PriorityCashier cashierData={priorityLane} currentTime={currentTime} />
+          <PriorityCashier 
+            cashierData={priorityLane} 
+            currentTime={currentTime} 
+            onRemove={handleRemovePriorityCustomer}
+          />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <RegularCashier cashierData={regularLane1} cashierName="🏪 Regular Cashier 1" currentTime={currentTime} />
-            <RegularCashier cashierData={regularLane2} cashierName="🏪 Regular Cashier 2" currentTime={currentTime} />
+            <RegularCashier 
+              cashierData={regularLane1} 
+              cashierName="Regular Cashier 1" 
+              currentTime={currentTime}
+              onRemove={handleRemoveRegular1Customer}
+            />
+            <RegularCashier 
+              cashierData={regularLane2} 
+              cashierName="Regular Cashier 2" 
+              currentTime={currentTime}
+              onRemove={handleRemoveRegular2Customer}
+            />
           </div>
         </div>
       </div>
