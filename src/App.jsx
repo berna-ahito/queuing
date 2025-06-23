@@ -1,155 +1,253 @@
-// src/App.jsx
+// App.jsx (harmonized with beige theme)
 import React, { useState, useEffect, useRef } from 'react'
 import Queue from './components/Queue'
-import RegularCashier from './components/RegularCashier'
 import PriorityCashier from './components/PriorityCashier'
-import {
-  Container, Typography, Button, Stack, Grid, Paper, Box
-} from '@mui/material'
-
-let nextNumber = 1
+import RegularCashier from './components/RegularCashier'
 
 function App() {
-  const [queue, setQueue] = useState([])
-  const [priorityCashier, setPriorityCashier] = useState([])
-  const [regularCashier1, setRegularCashier1] = useState([])
-  const [regularCashier2, setRegularCashier2] = useState([])
-  const [tick, setTick] = useState(0)
-  const [servedCount, setServedCount] = useState(0)
+  const [waitingQueue, setWaitingQueue] = useState([])
+  const [priorityLane, setPriorityLane] = useState([])
+  const [regularLane1, setRegularLane1] = useState([])
+  const [regularLane2, setRegularLane2] = useState([])
+  const [totalCustomersServed, setTotalCustomersServed] = useState(0)
+  const [currentTime, setCurrentTime] = useState(Date.now())
 
-  const priorityTimeout = useRef(null)
-  const reg1Timeout = useRef(null)
-  const reg2Timeout = useRef(null)
+  const priorityTimerRef = useRef(null)
+  const regular1TimerRef = useRef(null)
+  const regular2TimerRef = useRef(null)
+  const customerIdCounter = useRef(1)
 
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 1000)
+    const interval = setInterval(() => setCurrentTime(Date.now()), 1000)
     return () => clearInterval(interval)
   }, [])
 
-  const getRandomTime = () => Math.floor(Math.random() * 21 + 20) * 1000
+  const getRandomServiceTime = () => Math.floor(Math.random() * 20000) + 20000
 
-  const handleAdd = () => {
-    const id = `C-${String(nextNumber++).padStart(3, '0')}`
-    const newEntry = {
-      id,
-      type: Math.random() < 0.4 ? "Priority" : "Regular",
-      servingTime: getRandomTime(),
-    }
-    setQueue(prev => [...prev, newEntry])
+  const addCustomer = () => {
+    const id = `C-${String(customerIdCounter.current++).padStart(3, '0')}`
+    const type = Math.random() < 0.4 ? "Priority" : "Regular"
+    const newCustomer = { id, type, serviceTime: getRandomServiceTime(), createdAt: Date.now() }
+    setWaitingQueue(prev => [...prev, newCustomer])
   }
 
-  const handleAssign = () => {
-    let available = [...queue]
-
-    const assignToCashier = (cashier, setCashier, startFunc) => {
-      if (cashier.length === 0 && available.length) {
-        const customer = { ...available.shift(), startTime: Date.now(), servingTime: getRandomTime() }
-        setCashier([customer])
-        startFunc(customer)
-      }
+  const assignCustomersToLanes = () => {
+    if (waitingQueue.length === 0) {
+      alert("🚫 No customers to assign!")
+      return
     }
 
-    assignToCashier(priorityCashier, setPriorityCashier, startPriority)
-    assignToCashier(regularCashier1, setRegularCashier1, startRegular1)
-    assignToCashier(regularCashier2, setRegularCashier2, startRegular2)
+    const priority = []
+    const reg1 = []
+    const reg2 = []
 
-    const reg1Extra = [], reg2Extra = []
-    available.forEach((cust, idx) => (idx % 2 === 0 ? reg1Extra : reg2Extra).push(cust))
-    if (reg1Extra.length) setRegularCashier1(prev => [...prev, ...reg1Extra])
-    if (reg2Extra.length) setRegularCashier2(prev => [...prev, ...reg2Extra])
-    setQueue([])
+    const priorityCustomers = waitingQueue.filter(c => c.type === 'Priority')
+    const regularCustomers = waitingQueue.filter(c => c.type === 'Regular')
+
+    priorityCustomers.slice(0, 5).forEach(c => { priority.push(c) })
+
+    regularCustomers.concat(priorityCustomers.slice(5)).forEach(c => {
+      if (reg1.length <= reg2.length) reg1.push(c)
+      else reg2.push(c)
+    })
+
+    setWaitingQueue([])
+    setPriorityLane(priorityCustomers.slice(0, 5))
+    setRegularLane1(reg1)
+    setRegularLane2(reg2)
+
+    if (priority.length > 0) startServingCustomerInPriority(priority[0])
+    if (reg1.length > 0) startServingCustomerInRegular1(reg1[0])
+    if (reg2.length > 0) startServingCustomerInRegular2(reg2[0])
   }
 
-  const startRegular1 = (current) => {
-    reg1Timeout.current = setTimeout(() => {
-      setServedCount(c => c + 1)
-      setRegularCashier1(prev => {
-        const updated = prev.slice(1)
-        if (!updated.length) return []
-        const next = { ...updated[0], startTime: Date.now(), servingTime: getRandomTime() }
-        startRegular1(next)
-        return [next, ...updated.slice(1)]
-      })
-    }, current.servingTime)
-  }
+  const startServingCustomerInPriority = (customer) => {
+    if (priorityTimerRef.current) clearTimeout(priorityTimerRef.current)
+    const newCustomer = { ...customer, startTime: Date.now(), serviceTime: getRandomServiceTime() }
 
-  const startRegular2 = (current) => {
-    reg2Timeout.current = setTimeout(() => {
-      setServedCount(c => c + 1)
-      setRegularCashier2(prev => {
-        const updated = prev.slice(1)
-        if (!updated.length) return []
-        const next = { ...updated[0], startTime: Date.now(), servingTime: getRandomTime() }
-        startRegular2(next)
-        return [next, ...updated.slice(1)]
-      })
-    }, current.servingTime)
-  }
+    setPriorityLane(prev => {
+      const updated = [...prev]
+      updated[0] = newCustomer
+      return updated
+    })
 
-  const startPriority = (current) => {
-    setPriorityCashier([current])
-    priorityTimeout.current = setTimeout(() => {
-      setServedCount(c => c + 1)
-      let nextCandidate = null
-
-      setRegularCashier1(prev => {
-        const waiting = prev.slice(1)
-        if (!nextCandidate && waiting.length) {
-          nextCandidate = { ...waiting[0], startTime: Date.now(), servingTime: getRandomTime() }
-          return [prev[0], ...waiting.slice(1)]
+    priorityTimerRef.current = setTimeout(() => {
+      setTotalCustomersServed(count => count + 1)
+      setPriorityLane(prev => {
+        const remaining = prev.slice(1)
+        if (remaining.length > 0) {
+          startServingCustomerInPriority(remaining[0])
+          return remaining
+        } else {
+          let moved = false
+          setRegularLane1(reg1 => {
+            if (reg1.length > 1) {
+              const customer = reg1[1]
+              const updated = [...reg1]
+              updated.splice(1, 1)
+              setPriorityLane([customer])
+              startServingCustomerInPriority(customer)
+              moved = true
+              return updated
+            }
+            return reg1
+          })
+          if (!moved) {
+            setRegularLane2(reg2 => {
+              if (reg2.length > 1) {
+                const customer = reg2[1]
+                const updated = [...reg2]
+                updated.splice(1, 1)
+                setPriorityLane([customer])
+                startServingCustomerInPriority(customer)
+                return updated
+              }
+              return reg2
+            })
+          }
+          return []
         }
-        return prev
       })
-
-      setRegularCashier2(prev => {
-        const waiting = prev.slice(1)
-        if (!nextCandidate && waiting.length) {
-          nextCandidate = { ...waiting[0], startTime: Date.now(), servingTime: getRandomTime() }
-          return [prev[0], ...waiting.slice(1)]
-        }
-        return prev
-      })
-
-      nextCandidate ? startPriority(nextCandidate) : setPriorityCashier([])
-    }, current.servingTime)
+      balanceRegularLanes()
+    }, newCustomer.serviceTime)
   }
 
-  const handleReset = () => {
-    [priorityTimeout, reg1Timeout, reg2Timeout].forEach(ref => clearTimeout(ref.current))
-    setQueue([])
-    setPriorityCashier([])
-    setRegularCashier1([])
-    setRegularCashier2([])
-    setServedCount(0)
-    nextNumber = 1
+  const startServingCustomerInRegular1 = (customer) => {
+    if (regular1TimerRef.current) clearTimeout(regular1TimerRef.current)
+    const newCustomer = { ...customer, startTime: Date.now(), serviceTime: getRandomServiceTime() }
+
+    setRegularLane1(prev => {
+      const updated = [...prev]
+      updated[0] = newCustomer
+      return updated
+    })
+
+    regular1TimerRef.current = setTimeout(() => {
+      setTotalCustomersServed(c => c + 1)
+      setRegularLane1(prev => {
+        const remaining = prev.slice(1)
+        if (remaining.length > 0) {
+          startServingCustomerInRegular1(remaining[0])
+          return remaining
+        }
+        return []
+      })
+      balanceRegularLanes()
+    }, newCustomer.serviceTime)
+  }
+
+  const startServingCustomerInRegular2 = (customer) => {
+    if (regular2TimerRef.current) clearTimeout(regular2TimerRef.current)
+    const newCustomer = { ...customer, startTime: Date.now(), serviceTime: getRandomServiceTime() }
+
+    setRegularLane2(prev => {
+      const updated = [...prev]
+      updated[0] = newCustomer
+      return updated
+    })
+
+    regular2TimerRef.current = setTimeout(() => {
+      setTotalCustomersServed(c => c + 1)
+      setRegularLane2(prev => {
+        const remaining = prev.slice(1)
+        if (remaining.length > 0) {
+          startServingCustomerInRegular2(remaining[0])
+          return remaining
+        }
+        return []
+      })
+      balanceRegularLanes()
+    }, newCustomer.serviceTime)
+  }
+
+  const balanceRegularLanes = () => {
+    setTimeout(() => {
+      setRegularLane1(reg1 => {
+        setRegularLane2(reg2 => {
+          const reg1Wait = reg1.length > 1 ? reg1.slice(1) : []
+          const reg2Wait = reg2.length > 1 ? reg2.slice(1) : []
+          const diff = reg1Wait.length - reg2Wait.length
+          if (Math.abs(diff) > 1) {
+            const from = diff > 0 ? [...reg1] : [...reg2]
+            const to = diff > 0 ? [...reg2] : [...reg1]
+            const moved = from.splice(1, 1)[0]
+            to.push(moved)
+            setRegularLane1(diff > 0 ? from : to)
+            setRegularLane2(diff > 0 ? to : from)
+          }
+          return reg2
+        })
+        return reg1
+      })
+    }, 100)
+  }
+
+  const resetEverything = () => {
+    if (priorityTimerRef.current) clearTimeout(priorityTimerRef.current)
+    if (regular1TimerRef.current) clearTimeout(regular1TimerRef.current)
+    if (regular2TimerRef.current) clearTimeout(regular2TimerRef.current)
+    setWaitingQueue([])
+    setPriorityLane([])
+    setRegularLane1([])
+    setRegularLane2([])
+    setTotalCustomersServed(0)
+    customerIdCounter.current = 1
   }
 
   return (
-    <Container maxWidth="md" style={{ marginTop: 40, minHeight: '100vh', backgroundColor: '#fffbe6', paddingTop: 40 }}>
-      <Paper elevation={5} style={{ padding: 32, borderRadius: 16, backgroundColor: '#fff' }}>
-        <Typography variant="h4" gutterBottom style={{ color: '#c62828', fontWeight: 900, textAlign: 'center' }}>
-          Cashier Queue System
-        </Typography>
-        <Stack spacing={2} direction="row" justifyContent="center" style={{ marginBottom: 24 }}>
-          <Button variant="contained" style={{ backgroundColor: '#d32f2f', fontWeight: 'bold' }} onClick={handleAdd}>Add Customer</Button>
-          <Button variant="contained" style={{ backgroundColor: '#9e9e9e', color: '#fff', fontWeight: 'bold' }} onClick={handleAssign}>Assign Customers</Button>
-          <Button variant="outlined" color="error" onClick={handleReset}>Reset System</Button>
-        </Stack>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px', backgroundColor: '#fff8e1', minHeight: '100vh' }}>
+      <div style={{ backgroundColor: '#ffffff', padding: '30px', borderRadius: '15px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+        <h1 style={{ textAlign: 'center', color: '#d84315', marginBottom: '20px', fontSize: '2.5em', fontWeight: '700' }}>
+          💡 Cashier Queue Management System
+        </h1>
 
-        <Box textAlign="center" marginBottom={2}>
-          <Typography><strong>Total Served:</strong> {servedCount}</Typography>
-          <Typography><strong>Remaining in Queue:</strong> {queue.length}</Typography>
-        </Box>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '25px', flexWrap: 'wrap' }}>
+          <button onClick={addCustomer} style={buttonStyle('#fbc02d')}>➕ Add Customer</button>
+          <button onClick={assignCustomersToLanes} style={buttonStyle('#8d6e63')}>🎯 Assign Customers</button>
+          <button onClick={resetEverything} style={buttonStyle('#d84315')}>♻️ Reset System</button>
+        </div>
 
-        <Queue queue={queue} title="Waiting Queue" />
-        <Grid container spacing={2} style={{ marginTop: 24 }}>
-          <Grid item xs={12}><PriorityCashier data={priorityCashier} tick={tick} /></Grid>
-          <Grid item xs={12} md={6}><RegularCashier data={regularCashier1} title="Regular Cashier 1" tick={tick} /></Grid>
-          <Grid item xs={12} md={6}><RegularCashier data={regularCashier2} title="Regular Cashier 2" tick={tick} /></Grid>
-        </Grid>
-      </Paper>
-    </Container>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '60px', marginBottom: '30px', flexWrap: 'wrap' }}>
+          <Stat label="✅ Total Served" value={totalCustomersServed} color="#8d6e63" />
+          <Stat label="⌛ Waiting Queue" value={waitingQueue.length} color="#6d4c41" />
+        </div>
+
+        <Queue queueList={waitingQueue} title="📋 Waiting Queue" />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+          <PriorityCashier cashierData={priorityLane} currentTime={currentTime} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <RegularCashier cashierData={regularLane1} cashierName="🏪 Regular Cashier 1" currentTime={currentTime} />
+            <RegularCashier cashierData={regularLane2} cashierName="🏪 Regular Cashier 2" currentTime={currentTime} />
+          </div>
+        </div>
+      </div>
+    </div>
   )
+
+  function buttonStyle(color) {
+    return {
+      backgroundColor: color,
+      color: 'white',
+      border: 'none',
+      padding: '10px 22px',
+      borderRadius: '8px',
+      fontWeight: '500',
+      cursor: 'pointer',
+      fontSize: '15px',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+    }
+  }
+
+  function Stat({ label, value, color }) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <h3 style={{ margin: '0', color, fontWeight: '600', fontSize: '1em' }}>{label}</h3>
+        <p style={{ fontSize: '22px', fontWeight: '700', margin: '4px 0', color }}>{value}</p>
+      </div>
+    )
+  }
 }
 
 export default App
